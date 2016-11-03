@@ -4,6 +4,8 @@
 #define S_REG_SIZE 8
 #define K_REG_SIZE 2
 
+#include <stdint.h>
+
 //A struct that can hold the values of all architectural registers.
 struct RegisterInfo
 {

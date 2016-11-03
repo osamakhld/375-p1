@@ -1,5 +1,5 @@
 VPATH   = src include
-CFLAGS  = 
+CFLAGS  =
 CC      = g++
 LDLIBS  =
 LDFLAGS =

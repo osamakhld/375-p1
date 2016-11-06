@@ -1,16 +1,22 @@
 VPATH   = src include
-CFLAGS  = 
+CFLAGS  =
 CC      = g++
 LDLIBS  =
 LDFLAGS =
 
-all: example
+all: sim
 
 clean:
 	rm -rf example.o example
 
+sim: sim.o
+	$(CC) $(CFLAGS) $^ UtilityFunctions.o -o $@
+
 example: example.o UtilityFunctions.o
-	$(CC) $(CFLAGS) $^ -o $@
+	$(CC) $(CFLAGS) $^ UtilityFunctions.o -o $@
+
+sim.o: sim.cpp EndianHelpers.h MemoryStore.h RegisterInfo.h
+	$(CC) $(CFLAGS) -c $< -o $@ $(LDFLAGS) $(LDLIBS)
 
 example.o: example.cpp RegisterInfo.h MemoryStore.h
 	$(CC) $(CFLAGS) -c $< -o $@ $(LDFLAGS) $(LDLIBS)

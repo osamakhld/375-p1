@@ -3,6 +3,7 @@
 #include <iostream>
 #include <cstdio>
 #include <cstdlib>
+#include <fstream>
 #include "EndianHelpers.h"
 #include "MemoryStore.h"
 #include "RegisterInfo.h"
@@ -11,23 +12,27 @@
 enum {R, EXIT, J, I};
 enum {FALSE, TRUE};
 
+using namespace std;
+
 int main(int argc, char** argv)
 {
+  ifstream myFile;
   uint32_t regs[NUMREGS] = {};
   uint32_t pc = 0;
   uint32_t addr = 0;
   uint32_t value;
+  unsigned char buffer[4];
 
   MemoryStore *myMem = createMemoryStore();
-  std::ifstream file(argv[0], std::ifstream::binary);
-  file.read(value, 4);
-  value =  ConvertWordToBigEndian(value);
+  myFile.open(argv[1], ios::binary);
+  myFile.read((char*)buffer, 4);
+  value = ConvertWordToBigEndian(*(uint32_t *)buffer);
 
-  while (file.good())
+  while (myFile.good())
   {
     myMem->setMemValue(addr, value, WORD_SIZE);
-    file.read(value, 4);
-    value =  ConvertWordToBigEndian(value);
+    myFile.read((char*)buffer, 4);
+    value = ConvertWordToBigEndian(*(uint32_t *)buffer);
     addr  = addr + 4;
   }
 
@@ -35,6 +40,7 @@ int main(int argc, char** argv)
   {
     uint32_t instr = 0;
     int instr_type = 0;
+    int branch = 0;
     int rs;
     int rt;
     int rd;

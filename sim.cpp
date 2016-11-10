@@ -1,5 +1,3 @@
-//Things to look at, branch immediates, and unsigned instructions. we cover overflow (look at over flow functions and you will see a set of if statements).
-//pccheck is 0 when pc is NOT affected by instruction, i.e when it is 1 we do not increment by 4 at end of switch
 #include <iostream>
 #include <cstdio>
 #include <cstdlib>
@@ -11,6 +9,9 @@
 
 enum {R, EXIT, J, I};
 enum {FALSE, TRUE};
+int branch = 0;
+int do_branch = 0;
+int target;
 
 using namespace std;
 
@@ -28,7 +29,7 @@ int main(int argc, char** argv)
   myFile.read((char*)buffer, 4);
   value = ConvertWordToBigEndian(*(uint32_t *)buffer);
 
-  while (myFile.good())
+  while (!myFile.eof())
   {
     myMem->setMemValue(addr, value, WORD_SIZE);
     myFile.read((char*)buffer, 4);
@@ -40,23 +41,34 @@ int main(int argc, char** argv)
   {
     uint32_t instr = 0;
     int instr_type = 0;
-    int branch = 0;
+    int pccheck = 0;
     int rs;
     int rt;
     int rd;
     int shamt;
     int func;
     int address;
-    int imme;
-    int pccheck=0;
+    int imme;           // sign extended immediate
+    unsigned int uimme; // zero extended immediate
     int isOverflow;
+
+    if (do_branch)
+    {
+      pc = target;
+      branch = 0;
+      do_branch = 0;
+    }
+
+    else if (branch)
+      do_branch = 1;
 
     myMem->getMemValue(pc, instr , WORD_SIZE);
     uint32_t opcode = instr >> 26;
 
+    // R type instruction
     if (opcode == 0)
     {
-      int temp;
+      uint32_t temp;
       instr_type = R;
 
       //RS
@@ -90,14 +102,16 @@ int main(int argc, char** argv)
       func = temp;
     }
 
+    // 0xfeedfeed (exit)
     else if (opcode == 63)
     {
       instr_type = EXIT;
     }
 
+    // J type instruction
     else if (opcode == 2 || opcode == 3)
     {
-      int temp;
+      uint32_t temp;
       instr_type = J;
 
       //address
@@ -107,9 +121,11 @@ int main(int argc, char** argv)
       address = temp;
     }
 
+    // I type instruction
     else
     {
-      int temp;
+      uint32_t temp;
+      int temp2;
       instr_type = I;
 
       //RS
@@ -125,7 +141,13 @@ int main(int argc, char** argv)
       rt = temp;
 
       //Imme
-      temp = instr;
+      temp2 = instr;
+      temp2 = temp2 << 16; //16bits at top
+      temp2 = temp2 >> 16; // 16bits to the "bottom" → positon in array
+      imme = temp2;
+
+      //UImme
+      temp = (unsigned int) instr;
       temp = temp << 16; //16bits at top
       temp = temp >> 16; // 16bits to the "bottom" → positon in array
       imme = temp;
@@ -135,6 +157,7 @@ int main(int argc, char** argv)
     {
       case R:
       {
+        // add
         if (func == 0x20)
         {
           isOverflow = regs[rs] + regs[rt];
@@ -153,41 +176,33 @@ int main(int argc, char** argv)
             regs[rd] = isOverflow;
           }
         }
+        // addu
         else if (func == 0x21)
         {
-          isOverflow = regs[rs] + regs[rt];
-          if ((regs[rs] >= 0) && (regs[rt] >= 0) && (isOverflow < regs[rs]))
-          {
-            pc = 0x8000;
-            pccheck = 1;
-          }
-          else if ((regs[rs] < 0) && (regs[rt] < 0) && (isOverflow > regs[rs]))
-          {
-            pc = 0x8000;
-            pccheck = 1;
-          }
-          else
-          {
-            regs[rd] = isOverflow;
-          }
+          regs[rd] = regs[rs] + regs[rt];
         }
+        // and
         else if (func == 0x24)
         {
           regs[rd] = regs[rs] & regs[rt];
         }
+        // jr
         else if (func == 0x8)
         {
-          pc = regs[rs];
-          pccheck = 1;
+          target = regs[rs];
+          branch = 1;
         }
+        // nor
         else if (func == 0x27)
         {
           regs[rd] = ~(regs[rs] | regs[rt]);
         }
+        // or
         else if (func == 0x25)
         {
           regs[rd] = (regs[rs] | regs[rt]);
         }
+        // slt
         else if (func == 0x2a)
         {
           if (regs[rs] < regs[rt])
@@ -199,9 +214,10 @@ int main(int argc, char** argv)
             regs[rd] = 0;
           }
         }
+        // sltu
         else if (func == 0x2b)
         {
-          if( regs[rs] < regs[rt])
+          if ((uint32_t) regs[rs] < (uint32_t) regs[rt])
           {
             regs[rd] = 1;
           }
@@ -210,36 +226,52 @@ int main(int argc, char** argv)
             regs[rd] = 0;
           }
         }
+        // sll
         else if (func == 0x0)
         {
           regs[rd] = regs[rt] << shamt;
         }
+        // srl
         else if (func == 0x2)
         {
           regs[rd] = regs[rt] >> shamt;
         }
 
-        if (pccheck == 0)
-        pc = pc + 4;
+        if (!pccheck)
+        {
+          pc = pc + 4;
+        }
+
+        break;
       }
 
       case J:
       {
+        // j
         if (opcode == 2)
         {
-          pc = address;
-          pccheck = 1;
+          target = address;
+          branch = 1;
         }
-        else //Branch delay slot???
+        // jal
+        else if (opcode == 3)
         {
           regs [31] = pc + 8;
-          pc = address;
-          pccheck = 1;
+          target = address;
+          branch = 1;
         }
+
+        if (!pccheck)
+        {
+          pc = pc + 4;
+        }
+
+        break;
       }
 
       case I:
       {
+        // addi
         if (opcode == 0x8)
         {
           isOverflow = regs[rs] + imme;
@@ -258,74 +290,50 @@ int main(int argc, char** argv)
             regs[rt] = isOverflow;
           }
         }
+        // addiu
         else if (opcode ==0x9)
         {
-          isOverflow = regs[rs] + imme;
-          if ((regs[rs] >= 0) && (imme >= 0) && (isOverflow < regs[rs]))
-          {
-            pc = 0x8000;
-            pccheck = 1;
-          }
-          else if ((regs[rs] < 0) && (imme < 0) && (isOverflow > regs[rs]))
-          {
-            pc = 0x8000;
-            pccheck = 1;
-          }
-          else
-          {
-            regs[rt] = isOverflow;
-          }
+          regs[rt] = regs[rs] + imme;
         }
+        // andi
         else if (opcode == 0xc)
         {
-          regs[rt] = regs[rs] & imme;
+          regs[rt] = regs[rs] & uimme;
         }
+        // beq
         else if (opcode == 0x4)
         {
-          //BRANCH ON EQUAL
-          pccheck = 1;
+          if (regs[rs] == regs[rt])
+          {
+            target = pc + 4 + uimme;
+            branch = 1;
+          }
         }
+        // bne
         else if (opcode == 0x5)
         {
-          //BRANCH ON NOT EQUAL
-          pccheck = 1;
+          if (regs[rs] != regs[rt])
+          {
+            target = pc + 4 + uimme;
+            branch = 1;
+          }
         }
-        else if (opcode ==0x24)
+        // lbu
+        else if (opcode == 0x24)
         {
-          isOverflow = regs[rs] + imme;
-          if ((regs[rs] >= 0) && (imme >= 0) && (isOverflow < regs[rs]))
-          {
-            pc = 0x8000;
-            pccheck = 1;
-          }
-          else if ((regs[rs] < 0) && (imme < 0) && (isOverflow > regs[rs]))
-          {
-            pc = 0x8000;
-            pccheck = 1;
-          }
-
           myMem->getMemValue(isOverflow, regs[rt], WORD_SIZE);
         }
+        // lhu
         else if (opcode == 0x25)
         {
-          isOverflow = regs[rs] + imme;
-          if ((regs[rs] >= 0) && (imme >= 0) && (isOverflow < regs[rs]))
-          {
-            pc = 0x8000;
-            pccheck = 1;
-          }
-          else if ((regs[rs] < 0) && (imme < 0) && (isOverflow > regs[rs]))
-          {
-            pc = 0x8000;
-            pccheck = 1;
-          }
-
           myMem->getMemValue(isOverflow, regs[rt], HALF_SIZE);
         }
+        // lui
         else if (opcode == 0xf)
         {
           regs[rt] = imme << 16;
         }
+        // lw
         else if (opcode == 0x23)
         {
           isOverflow = regs[rs] + imme;
@@ -342,10 +350,12 @@ int main(int argc, char** argv)
 
           myMem->getMemValue(isOverflow, regs[rt], WORD_SIZE);
         }
+        // ori
         else if (opcode == 0xd)
         {
-          regs[rt] = regs[rs] | imme;
+          regs[rt] = regs[rs] | uimme;
         }
+        // slti
         else if (opcode == 0xa)
         {
           if( regs[rs] < imme)
@@ -357,9 +367,10 @@ int main(int argc, char** argv)
             regs[rt] = 0;
           }
         }
+        // sltiu
         else if (opcode == 0xb)
         {
-          if (regs[rs] < imme)
+          if ((uint32_t) regs[rs] < (uint32_t) imme)
           {
             regs[rt] = 1;
           }
@@ -368,6 +379,7 @@ int main(int argc, char** argv)
             regs[rt] = 0;
           }
         }
+        // sb
         else if (opcode == 0x28)
         {
           int temp = rs << 24; //shift left
@@ -375,6 +387,7 @@ int main(int argc, char** argv)
           int loc = regs[rs] + imme;
           myMem->setMemValue(loc, temp, WORD_SIZE);
         }
+        // sh
         else if (opcode == 0x29)
         {
           int temp = rs << 16; //shift left
@@ -382,22 +395,26 @@ int main(int argc, char** argv)
           int loc = regs[rs] + imme;
           myMem->setMemValue(loc, temp, WORD_SIZE);
         }
+        // sw
         else if (opcode == 0x2b)
         {
           int loc = regs[rs] + imme;
           myMem->setMemValue(loc, rt, WORD_SIZE);
         }
 
-        if(pccheck == 0)
-        pc = pc + 4;
+        if (!pccheck)
+        {
+          pc = pc + 4;
+        }
+
+        break;
       }
 
       case EXIT:
       {
         RegisterInfo reg;
-        int index;
-        reg.at = regs[1]; //at
-        index++;
+        int index = 1;
+        reg.at = regs[index++]; //at
         //v 3
         for (int i = 0; i < (V_REG_SIZE); i++, index++)
         {
@@ -424,12 +441,9 @@ int main(int argc, char** argv)
           reg.k[i] = regs[index];
         }
 
-        reg.gp = regs[index];
-        index++;
-        reg.sp = regs[index];
-        index++;
-        reg.fp = regs[index];
-        index++;
+        reg.gp = regs[index++];
+        reg.sp = regs[index++];
+        reg.fp = regs[index++];
         reg.ra = regs[index];
 
         dumpRegisterState(reg);

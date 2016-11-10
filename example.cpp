@@ -13,7 +13,7 @@ int main()
     myMem->getMemValue(0x10, value, WORD_SIZE);
 
     cout << "The 32-bit (word) value of address 0x10 is 0x" << hex << setfill('0') << setw(8) << value << endl;
-
+    
     cout << "Setting byte 0x10 to 0xff" << endl;
     myMem->setMemValue(0x10, 0xff, BYTE_SIZE);
 

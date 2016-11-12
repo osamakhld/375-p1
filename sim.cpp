@@ -29,7 +29,7 @@ int main(int argc, char** argv)
   myFile.read((char*)buffer, 4);
   value = ConvertWordToBigEndian(*(uint32_t *)buffer);
 
-  while (!myFile.eof())
+  while (myFile.good())
   {
     myMem->setMemValue(addr, value, WORD_SIZE);
     myFile.read((char*)buffer, 4);
@@ -61,6 +61,8 @@ int main(int argc, char** argv)
 
     else if (branch)
       do_branch = 1;
+
+     regs[0]= 0; 
 
     myMem->getMemValue(pc, instr , WORD_SIZE);
     uint32_t opcode = instr >> 26;
@@ -111,20 +113,20 @@ int main(int argc, char** argv)
     // J type instruction
     else if (opcode == 2 || opcode == 3)
     {
-      uint32_t temp;
+      uint32_t temp, temp2, temp3;
       instr_type = J;
 
       //address
       temp = instr;
-      temp = temp << 6; //26bits at top
-      temp = temp >> 6; // 26 bits to the "bottom" → positon in array
-      address = temp;
+      temp2 = temp << 6; //26bits at top
+      temp3 = temp2 >> 6; // 26 bits to the "bottom" → positon in array
+      address = temp3 << 2; //mult by 4
     }
 
     // I type instruction
     else
     {
-      uint32_t temp;
+      int32_t temp;
       int temp2;
       instr_type = I;
 
@@ -150,7 +152,7 @@ int main(int argc, char** argv)
       temp = (unsigned int) instr;
       temp = temp << 16; //16bits at top
       temp = temp >> 16; // 16bits to the "bottom" → positon in array
-      imme = temp;
+      uimme = temp;
     }
 
     switch (instr_type)
@@ -160,21 +162,45 @@ int main(int argc, char** argv)
         // add
         if (func == 0x20)
         {
-          isOverflow = regs[rs] + regs[rt];
-          if ((regs[rs] >= 0) && (regs[rt] >= 0) && (isOverflow < regs[rs]))
-          {
-            pc = 0x8000;
-            pccheck = 1;
-          }
-          else if ((regs[rs] < 0) && (regs[rt] < 0) && (isOverflow > regs[rs]))
-          {
-            pc = 0x8000;
-            pccheck = 1;
-          }
-          else
-          {
-            regs[rd] = isOverflow;
-          }
+	  uint32_t value1, value2;//
+	  value1 = regs[rs]; 
+	  value2 = regs[rt]; 
+	  
+	  uint32_t sign1 = value1  >>  31; //sign bit shift right 32	
+	  uint32_t sign2 = value2  >> 31; //sign bit
+	   
+	  uint32_t result = value1+value2;// 
+	  uint32_t sign3  = result >> 31; 
+	 
+	  if(sign1 && sign2) //negative overfow 
+	  {
+	    if(!sign3) //resutlt was positve 
+	      { 
+		pc = 0x8000; 
+		pccheck = 1; 
+	      }
+	    else
+	      {
+		regs[rd]=result;
+	      }
+	  } 
+	  else if (!(sign1 || sign2)) //positve overflow 
+	    {     
+	      if(sign3) //resutlt was negative 
+		{ 
+		  pc = 0x8000; 
+		  pccheck = 1; 
+		}
+	      else
+		{
+		  regs[rd] = result;
+	      }
+	      
+	    } 
+	  else 
+	    { 
+	      regs[rd] = result;
+	    }
         }
         // addu
         else if (func == 0x21)
@@ -237,6 +263,55 @@ int main(int argc, char** argv)
           regs[rd] = regs[rt] >> shamt;
         }
 
+	//sub
+	else if (func == 0x22) 
+	  { 
+	    uint32_t value1, value2;//
+	    value1 = regs[rs]; 
+	    value2 = 0-regs[rt]; 
+	    
+	    uint32_t sign1 = value1  >>  31; //sign bit shift right 32	
+	    uint32_t sign2 = value2  >> 31; //sign bit
+	    
+	    uint32_t result = value1+value2;// 
+	    uint32_t sign3  = result >> 31; 
+	    		
+	    if(sign1 && sign2) 
+	      {
+		if(!sign3)  
+		  { 
+		    pc = 0x8000; 
+		    pccheck = 1; 
+		  }
+		else
+		  {
+		    regs[rd]=result;
+		  }
+	      } 
+	    else if (!(sign1 || sign2)) 
+	      {     
+		if(sign3)  
+		  { 
+		    pc = 0x8000; 
+		    pccheck = 1; 
+		  }
+		else
+		  {
+		    regs[rd] = result;
+		  }
+	      } 
+	    else 
+	      { 
+		regs[rd] = result;
+	      }   
+	  } 
+	
+	//subu 
+	else if(func == 0x23) 
+	  { 
+	    regs[rd] = regs[rs] - regs[rt]; 
+	  } 
+
         if (!pccheck)
         {
           pc = pc + 4;
@@ -274,21 +349,45 @@ int main(int argc, char** argv)
         // addi
         if (opcode == 0x8)
         {
-          isOverflow = regs[rs] + imme;
-          if ((regs[rs] >= 0) && (imme >= 0) && (isOverflow < regs[rs]))
-          {
-            pc = 0x8000;
-            pccheck = 1;
-          }
-          else if ((regs[rs] < 0) && (imme < 0) && (isOverflow > regs[rs]))
-          {
-            pc = 0x8000;
-            pccheck = 1;
-          }
-          else
-          {
-            regs[rt] = isOverflow;
-          }
+	    uint32_t value1, value2;//
+	  value1 = regs[rs]; 
+	  	  value2 = imme; 
+	  
+	  uint32_t sign1 = value1  >>  31; //sign bit shift right 32	
+	  uint32_t sign2 = value2 >> 15; //sign bit
+	   
+	  uint32_t result = value1+value2;// 
+	  uint32_t sign3  = result >> 31; 
+	 
+	  if(sign1 && sign2) //negative overfow 
+	  {
+	    if(!sign3) //resutlt was positve 
+	      { 
+		pc = 0x8000; 
+		pccheck = 1; 
+	      }
+	    else
+	      {
+		regs[rt]=result;
+	      }
+	  } 
+	  else if (!(sign1 || sign2)) //positve overflow 
+	    {     
+	      if(sign3) //resutlt was negative 
+		{ 
+		  pc = 0x8000; 
+		  pccheck = 1; 
+		}
+	      else
+		{
+		  regs[rt] = result;
+	      }
+	      
+	    } 
+	  else 
+	    { 
+	      regs[rt] = result;
+	    }
         }
         // addiu
         else if (opcode ==0x9)
@@ -305,7 +404,7 @@ int main(int argc, char** argv)
         {
           if (regs[rs] == regs[rt])
           {
-            target = pc + 4 + uimme;
+            target = pc + 4 * uimme +4; //
             branch = 1;
           }
         }
@@ -314,40 +413,32 @@ int main(int argc, char** argv)
         {
           if (regs[rs] != regs[rt])
           {
-            target = pc + 4 + uimme;
+            target = pc + 4 * uimme + 4;
             branch = 1;
           }
         }
         // lbu
         else if (opcode == 0x24)
         {
-          myMem->getMemValue(isOverflow, regs[rt], WORD_SIZE);
+          uint16_t sum = regs[rs] + imme;
+          myMem->getMemValue(sum, regs[rt], BYTE_SIZE);
         }
         // lhu
         else if (opcode == 0x25)
         {
-          myMem->getMemValue(isOverflow, regs[rt], HALF_SIZE);
+          uint16_t sum = regs[rs] + imme;
+          myMem->getMemValue(sum, regs[rt], HALF_SIZE);
         }
         // lui
         else if (opcode == 0xf)
         {
-          regs[rt] = imme << 16;
+        
+          regs[rt] = imme;
         }
         // lw
         else if (opcode == 0x23)
         {
           isOverflow = regs[rs] + imme;
-          if ((regs[rs] >= 0) && (imme >= 0) && (isOverflow < regs[rs]))
-          {
-            pc = 0x8000;
-            pccheck = 1;
-          }
-          else if ((regs[rs] < 0) && (imme < 0) && (isOverflow > regs[rs]))
-          {
-            pc = 0x8000;
-            pccheck = 1;
-          }
-
           myMem->getMemValue(isOverflow, regs[rt], WORD_SIZE);
         }
         // ori
@@ -382,24 +473,20 @@ int main(int argc, char** argv)
         // sb
         else if (opcode == 0x28)
         {
-          int temp = rs << 24; //shift left
-          temp = temp >> 24 ; //shift right
-          int loc = regs[rs] + imme;
-          myMem->setMemValue(loc, temp, WORD_SIZE);
+	    uint32_t loc = regs[rs] + imme;
+	    myMem->setMemValue(loc, regs[rt], BYTE_SIZE);
         }
         // sh
         else if (opcode == 0x29)
         {
-          int temp = rs << 16; //shift left
-          temp = temp >> 16; //shift right
-          int loc = regs[rs] + imme;
-          myMem->setMemValue(loc, temp, WORD_SIZE);
+          uint32_t loc = regs[rs] + imme;
+          myMem->setMemValue(loc, regs[rt], HALF_SIZE);
         }
         // sw
         else if (opcode == 0x2b)
         {
-          int loc = regs[rs] + imme;
-          myMem->setMemValue(loc, rt, WORD_SIZE);
+          uint32_t loc = regs[rs] + imme;
+          myMem->setMemValue(loc, regs[rt], WORD_SIZE);
         }
 
         if (!pccheck)

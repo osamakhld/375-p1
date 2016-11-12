@@ -28,5 +28,5 @@ fib.bin: fib_example.asm
 single.bin: single.asm
 	mips-linux-gnu-as -march=mips32 single.asm -o single.elf
 	mips-linux-gnu-objcopy single.elf -j .text -O binary single.bin
-	sim single.bin
-	more reg_state.out
+#	sim single.bin
+#	more reg_state.out

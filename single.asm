@@ -1,8 +1,11 @@
 # Compute first twelve Fibonacci numbers and put in array
-main:
-      lw   $t0, 16($zero)
-      lw   $t1, 16($zero)
-      add  $t2, $t1, $t0
-      .word 0xfeedfeed
-      .word 0xff000000
-      .word 0x00000001
+.set noreorder 
+main: 
+      lw   $t1,  16($zero)
+      lw   $t2, 20($zero)
+      addi  $t3, $t1, 0   
+      .word 0xfeedfeed  
+      .word 0x80000000
+      .word -0x00000001    
+	
+	

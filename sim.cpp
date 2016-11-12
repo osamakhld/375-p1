@@ -1,3 +1,7 @@
+/*Authors: Osama Hassan, Isaac Resendes, Richard Henry 
+  Filename: sim.cpp 
+*/ 
+  
 #include <iostream>
 #include <cstdio>
 #include <cstdlib>
@@ -420,13 +424,14 @@ int main(int argc, char** argv)
         // lbu
         else if (opcode == 0x24)
         {
-          uint16_t sum = regs[rs] + imme;
+          
+          uint16_t sum = regs[rs] + imme + 3;
           myMem->getMemValue(sum, regs[rt], BYTE_SIZE);
         }
         // lhu
         else if (opcode == 0x25)
         {
-          uint16_t sum = regs[rs] + imme;
+          uint16_t sum = regs[rs] + imme + 2;
           myMem->getMemValue(sum, regs[rt], HALF_SIZE);
         }
         // lui
@@ -473,13 +478,13 @@ int main(int argc, char** argv)
         // sb
         else if (opcode == 0x28)
         {
-	    uint32_t loc = regs[rs] + imme;
+	    uint32_t loc = regs[rs] + imme +3;
 	    myMem->setMemValue(loc, regs[rt], BYTE_SIZE);
         }
         // sh
         else if (opcode == 0x29)
         {
-          uint32_t loc = regs[rs] + imme;
+          uint32_t loc = regs[rs] + imme+2;
           myMem->setMemValue(loc, regs[rt], HALF_SIZE);
         }
         // sw
